@@ -137,7 +137,7 @@
         statusDiv.innerText = "Searching nearby spots via OpenRouter...";
 
         const prompt = `Given latitude ${lat} and longitude ${lon}, list 3 pure vegetarian restaurants and 3 historical/heritage sites nearby.
-Return ONLY a raw JSON array matching this exact structure with no Markdown tags or extra prose:
+Return ONLY a raw JSON array matching this exact structure with no Markdown formatting or extra text:
 [
   {"type": "veg", "name": "Place Name", "desc": "Brief description", "dist": "Distance in km"},
   {"type": "heritage", "name": "Site Name", "desc": "Brief description", "dist": "Distance in km"}
@@ -151,7 +151,7 @@ Return ONLY a raw JSON array matching this exact structure with no Markdown tags
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              model: 'openrouter/auto',
+              model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
               messages: [{ role: 'user', content: prompt }]
             })
           });
@@ -175,7 +175,7 @@ Return ONLY a raw JSON array matching this exact structure with no Markdown tags
               resultsDiv.appendChild(card);
             });
           } else {
-            statusDiv.innerText = "Error: " + (data.error?.message || "Invalid API key or credit issue.");
+            statusDiv.innerText = "Error: " + (data.error?.message || "Invalid API key or model error.");
           }
         } catch (err) {
           statusDiv.innerText = "Error processing data: " + err.message;
