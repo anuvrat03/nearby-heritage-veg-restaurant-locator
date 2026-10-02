@@ -18,16 +18,12 @@
       background-color: #27ae60;
       color: white;
       border: none;
-      padding: 12px;
+      padding: 14px;
       font-size: 16px;
       border-radius: 8px;
       width: 100%;
       margin-bottom: 10px;
       font-weight: bold;
-    }
-    .reset-btn {
-      background-color: #e74c3c;
-      margin-top: 15px;
     }
     input {
       width: 95%;
@@ -54,6 +50,21 @@
     .heritage-card {
       border-left-color: #e67e22;
     }
+    .key-status {
+      font-size: 13px;
+      color: #27ae60;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .change-key-link {
+      font-size: 12px;
+      color: #888;
+      text-decoration: underline;
+      cursor: pointer;
+      display: block;
+      margin-top: 15px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -61,59 +72,64 @@
   <h2>📍 Veg & Heritage Spotter</h2>
   <p>Find pure vegetarian food and historic structures near you.</p>
 
+  <!-- Key Entry Section (Hidden when key exists) -->
   <div id="keySection">
-    <input type="password" id="apiKey" placeholder="Paste OpenRouter Key Here" />
+    <input type="password" id="apiKey" placeholder="Paste Google AI Studio Key Here" />
     <button onclick="saveKey()">Save Key on Device</button>
   </div>
 
+  <!-- Main App Section -->
   <div id="appSection" style="display:none;">
+    <div class="key-status">✓ API Key Active</div>
     <button onclick="getPlaces()">Find Places Near Me</button>
-    <button class="reset-btn" onclick="resetKey()">Reset / Change Saved Key</button>
   </div>
 
   <div id="status"></div>
   <div id="map"></div>
   <div id="results"></div>
 
+  <span id="resetLink" class="change-key-link" style="display:none;" onclick="resetKey()">Change Saved Key</span>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     let map, userMarker;
 
     window.onload = function() {
-      const savedKey = localStorage.getItem('openrouter_key');
+      const savedKey = localStorage.getItem('gemini_key');
       if (savedKey) {
         document.getElementById('keySection').style.display = 'none';
         document.getElementById('appSection').style.display = 'block';
+        document.getElementById('resetLink').style.display = 'block';
       }
     };
 
     function saveKey() {
       const key = document.getElementById('apiKey').value.trim();
       if (!key) {
-        alert('Please enter a valid key!');
+        alert('Please paste a valid Google AI Studio key!');
         return;
       }
-      localStorage.setItem('openrouter_key', key);
-      alert('Key saved successfully!');
+      localStorage.setItem('gemini_key', key);
       document.getElementById('keySection').style.display = 'none';
       document.getElementById('appSection').style.display = 'block';
+      document.getElementById('resetLink').style.display = 'block';
     }
 
     function resetKey() {
-      localStorage.removeItem('openrouter_key');
-      alert('Saved key cleared!');
+      localStorage.removeItem('gemini_key');
       document.getElementById('keySection').style.display = 'block';
       document.getElementById('appSection').style.display = 'none';
+      document.getElementById('resetLink').style.display = 'none';
       document.getElementById('apiKey').value = '';
     }
 
     async function getPlaces() {
-      const apiKey = localStorage.getItem('openrouter_key');
+      const apiKey = localStorage.getItem('gemini_key');
       const statusDiv = document.getElementById('status');
       const resultsDiv = document.getElementById('results');
 
       if (!apiKey) {
-        alert('Key missing.');
+        alert('API Key missing. Please click Change Saved Key.');
         return;
       }
 
@@ -134,34 +150,32 @@
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.marker([lat, lon]).addTo(map).bindPopup('You are here').openPopup();
 
-        statusDiv.innerText = "Searching nearby spots via OpenRouter...";
+        statusDiv.innerText = "Searching nearby spots via Google AI...";
 
         const prompt = `Given latitude ${lat} and longitude ${lon}, list 3 pure vegetarian restaurants and 3 historical/heritage sites nearby.
-Return ONLY a raw JSON array matching this exact structure with no markdown tags or text:
+Return ONLY a raw JSON array with no markdown backticks, matching this exact format:
 [
   {"type": "veg", "name": "Place Name", "desc": "Brief description", "dist": "Distance in km"},
   {"type": "heritage", "name": "Site Name", "desc": "Brief description", "dist": "Distance in km"}
 ]`;
 
         try {
-          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+          
+          const response = await fetch(url, {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              model: 'openrouter/auto',
-              messages: [{ role: 'user', content: prompt }]
+              contents: [{ parts: [{ text: prompt }] }]
             })
           });
 
           const data = await response.json();
-          if (data.choices && data.choices[0]) {
+          if (data.candidates && data.candidates[0].content.parts[0].text) {
             statusDiv.innerText = "";
             resultsDiv.innerHTML = "";
 
-            let rawText = data.choices[0].message.content;
+            let rawText = data.candidates[0].content.parts[0].text;
             let cleanJson = rawText.replace(/```json|```/g, '').trim();
             const places = JSON.parse(cleanJson);
 
@@ -175,13 +189,13 @@ Return ONLY a raw JSON array matching this exact structure with no markdown tags
               resultsDiv.appendChild(card);
             });
           } else {
-            statusDiv.innerText = "Error: " + (data.error?.message || "Invalid API key or model error.");
+            statusDiv.innerText = "Error: " + (data.error?.message || "Invalid Google AI Studio Key.");
           }
         } catch (err) {
-          statusDiv.innerText = "Error processing data: " + err.message;
+          statusDiv.innerText = "Error processing places: " + err.message;
         }
       }, (err) => {
-        statusDiv.innerText = "Location Error: Please ensure Location (GPS) is enabled.";
+        statusDiv.innerText = "Location Error: Please ensure Location (GPS) is turned on.";
       });
     }
   </script>
