@@ -151,7 +151,7 @@ Return ONLY a raw JSON array matching this exact structure with no Markdown tags
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              model: 'google/gemma-2-9b-it:free',
+              model: 'openrouter/auto',
               messages: [{ role: 'user', content: prompt }]
             })
           });
