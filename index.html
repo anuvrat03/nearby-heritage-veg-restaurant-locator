@@ -44,20 +44,44 @@
   <h2>📍 Veg & Heritage Spotter</h2>
   <p>Find pure vegetarian food and historic structures near you.</p>
 
-  <input type="password" id="apiKey" placeholder="Paste OpenRouter API Key Here" />
-  <button onclick="getPlaces()">Find Places Near Me</button>
+  <div id="keySection">
+    <input type="password" id="apiKey" placeholder="Paste OpenRouter API Key Here" />
+    <button onclick="saveKey()">Save Key on This Device</button>
+  </div>
+
+  <button id="findBtn" onclick="getPlaces()" style="display:none;">Find Places Near Me</button>
 
   <div id="status"></div>
   <div id="output" class="card" style="display:none;"></div>
 
   <script>
+    window.onload = function() {
+      const savedKey = localStorage.getItem('openrouter_key');
+      if (savedKey) {
+        document.getElementById('keySection').style.display = 'none';
+        document.getElementById('findBtn').style.display = 'block';
+      }
+    };
+
+    function saveKey() {
+      const key = document.getElementById('apiKey').value.trim();
+      if (!key) {
+        alert('Please enter a valid key!');
+        return;
+      }
+      localStorage.setItem('openrouter_key', key);
+      alert('Key saved successfully! You won\'t need to enter it again.');
+      document.getElementById('keySection').style.display = 'none';
+      document.getElementById('findBtn').style.display = 'block';
+    }
+
     async function getPlaces() {
-      const apiKey = document.getElementById('apiKey').value.trim();
+      const apiKey = localStorage.getItem('openrouter_key');
       const statusDiv = document.getElementById('status');
       const outputDiv = document.getElementById('output');
 
       if (!apiKey) {
-        alert('Please enter your OpenRouter API Key!');
+        alert('API key missing. Please refresh and re-enter.');
         return;
       }
 
@@ -98,7 +122,7 @@ Provide brief descriptions and approximate distances for each place.`;
             outputDiv.style.display = "block";
             outputDiv.innerText = data.choices[0].message.content;
           } else {
-            statusDiv.innerText = "Failed to fetch data. Check your API key.";
+            statusDiv.innerText = "Failed to fetch data. Your key might be invalid.";
           }
         } catch (err) {
           statusDiv.innerText = "Error fetching results: " + err.message;
