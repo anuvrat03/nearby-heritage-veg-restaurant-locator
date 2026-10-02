@@ -25,6 +25,10 @@
       margin-bottom: 10px;
       font-weight: bold;
     }
+    .reset-btn {
+      background-color: #e74c3c;
+      margin-top: 15px;
+    }
     input {
       width: 95%;
       padding: 10px;
@@ -62,7 +66,10 @@
     <button onclick="saveKey()">Save Key on Device</button>
   </div>
 
-  <button id="findBtn" onclick="getPlaces()" style="display:none;">Find Places Near Me</button>
+  <div id="appSection" style="display:none;">
+    <button onclick="getPlaces()">Find Places Near Me</button>
+    <button class="reset-btn" onclick="resetKey()">Reset / Change Saved Key</button>
+  </div>
 
   <div id="status"></div>
   <div id="map"></div>
@@ -76,7 +83,7 @@
       const savedKey = localStorage.getItem('openrouter_key');
       if (savedKey) {
         document.getElementById('keySection').style.display = 'none';
-        document.getElementById('findBtn').style.display = 'block';
+        document.getElementById('appSection').style.display = 'block';
       }
     };
 
@@ -87,9 +94,17 @@
         return;
       }
       localStorage.setItem('openrouter_key', key);
-      alert('Key saved! You won\'t need to re-enter it.');
+      alert('Key saved successfully!');
       document.getElementById('keySection').style.display = 'none';
-      document.getElementById('findBtn').style.display = 'block';
+      document.getElementById('appSection').style.display = 'block';
+    }
+
+    function resetKey() {
+      localStorage.removeItem('openrouter_key');
+      alert('Saved key cleared! Please paste your fresh key.');
+      document.getElementById('keySection').style.display = 'block';
+      document.getElementById('appSection').style.display = 'none';
+      document.getElementById('apiKey').value = '';
     }
 
     async function getPlaces() {
@@ -122,7 +137,7 @@
         statusDiv.innerText = "Searching nearby spots via OpenRouter...";
 
         const prompt = `Given latitude ${lat} and longitude ${lon}, list 3 pure vegetarian restaurants and 3 historical/heritage sites nearby.
-Return ONLY a raw JSON array matching this exact structure with no extra text:
+Return ONLY a raw JSON array matching this exact structure with no Markdown tags or extra prose:
 [
   {"type": "veg", "name": "Place Name", "desc": "Brief description", "dist": "Distance in km"},
   {"type": "heritage", "name": "Site Name", "desc": "Brief description", "dist": "Distance in km"}
