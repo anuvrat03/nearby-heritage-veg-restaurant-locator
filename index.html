@@ -22,15 +22,8 @@
       font-size: 16px;
       border-radius: 8px;
       width: 100%;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
       font-weight: bold;
-    }
-    input {
-      width: 95%;
-      padding: 10px;
-      margin-bottom: 10px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
     }
     #map {
       height: 250px;
@@ -50,20 +43,10 @@
     .heritage-card {
       border-left-color: #e67e22;
     }
-    .key-status {
-      font-size: 13px;
-      color: #27ae60;
-      font-weight: bold;
+    #status {
+      font-size: 14px;
       margin-bottom: 10px;
-    }
-    .change-key-link {
-      font-size: 12px;
-      color: #888;
-      text-decoration: underline;
-      cursor: pointer;
-      display: block;
-      margin-top: 15px;
-      text-align: center;
+      color: #555;
     }
   </style>
 </head>
@@ -72,66 +55,19 @@
   <h2>📍 Veg & Heritage Spotter</h2>
   <p>Find pure vegetarian food and historic structures near you.</p>
 
-  <!-- Key Entry Section -->
-  <div id="keySection">
-    <input type="password" id="apiKey" placeholder="Paste Google AI Studio Key Here" />
-    <button onclick="saveKey()">Save Key on Device</button>
-  </div>
-
-  <!-- Main App Section -->
-  <div id="appSection" style="display:none;">
-    <div class="key-status">✓ API Key Active</div>
-    <button onclick="getPlaces()">Find Places Near Me</button>
-  </div>
+  <button onclick="getPlaces()">Find Places Near Me</button>
 
   <div id="status"></div>
   <div id="map"></div>
   <div id="results"></div>
 
-  <span id="resetLink" class="change-key-link" style="display:none;" onclick="resetKey()">Change Saved Key</span>
-
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    let map, userMarker;
-
-    window.onload = function() {
-      const savedKey = localStorage.getItem('gemini_key');
-      if (savedKey) {
-        document.getElementById('keySection').style.display = 'none';
-        document.getElementById('appSection').style.display = 'block';
-        document.getElementById('resetLink').style.display = 'block';
-      }
-    };
-
-    function saveKey() {
-      const key = document.getElementById('apiKey').value.trim();
-      if (!key) {
-        alert('Please paste a valid Google AI Studio key!');
-        return;
-      }
-      localStorage.setItem('gemini_key', key);
-      document.getElementById('keySection').style.display = 'none';
-      document.getElementById('appSection').style.display = 'block';
-      document.getElementById('resetLink').style.display = 'block';
-    }
-
-    function resetKey() {
-      localStorage.removeItem('gemini_key');
-      document.getElementById('keySection').style.display = 'block';
-      document.getElementById('appSection').style.display = 'none';
-      document.getElementById('resetLink').style.display = 'none';
-      document.getElementById('apiKey').value = '';
-    }
+    let map, userMarker, placesGroup;
 
     async function getPlaces() {
-      const apiKey = localStorage.getItem('gemini_key');
       const statusDiv = document.getElementById('status');
       const resultsDiv = document.getElementById('results');
-
-      if (!apiKey) {
-        alert('API Key missing. Please click Change Saved Key.');
-        return;
-      }
 
       statusDiv.innerText = "Accessing GPS location...";
 
@@ -141,61 +77,77 @@
 
         document.getElementById('map').style.display = 'block';
         if (!map) {
-          map = L.map('map').setView([lat, lon], 14);
+          map = L.map('map').setView([lat, lon], 13);
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+          placesGroup = L.layerGroup().addTo(map);
         } else {
-          map.setView([lat, lon], 14);
+          map.setView([lat, lon], 13);
+          placesGroup.clearLayers();
         }
 
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.marker([lat, lon]).addTo(map).bindPopup('You are here').openPopup();
 
-        statusDiv.innerText = "Searching nearby spots via Google AI...";
+        statusDiv.innerText = "Searching OpenStreetMap data...";
 
-        const prompt = `Given latitude ${lat} and longitude ${lon}, list 3 pure vegetarian restaurants and 3 historical/heritage sites nearby.
-Return ONLY a raw JSON array with no markdown backticks, matching this exact format:
-[
-  {"type": "veg", "name": "Place Name", "desc": "Brief description", "dist": "Distance in km"},
-  {"type": "heritage", "name": "Site Name", "desc": "Brief description", "dist": "Distance in km"}
-]`;
+        // Overpass QL Query for Veg restaurants and Heritage/Historic sites within 5km (5000m)
+        const query = `
+          [out:json][timeout:25];
+          (
+            node["diet:vegetarian"="yes"](around:5000,${lat},${lon});
+            node["amenity"="restaurant"]["vegetarian"="yes"](around:5000,${lat},${lon});
+            node["historic"](around:5000,${lat},${lon});
+            way["historic"](around:5000,${lat},${lon});
+          );
+          out center 10;
+        `;
 
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-          
-          const response = await fetch(url, {
+          const response = await fetch('https://overpass-api.de/api/interpreter', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }]
-            })
+            body: query
           });
 
           const data = await response.json();
-          if (data.candidates && data.candidates[0].content.parts[0].text) {
-            statusDiv.innerText = "";
-            resultsDiv.innerHTML = "";
+          resultsDiv.innerHTML = "";
 
-            let rawText = data.candidates[0].content.parts[0].text;
-            let cleanJson = rawText.replace(/```json|```/g, '').trim();
-            const places = JSON.parse(cleanJson);
-
-            places.forEach(item => {
-              const card = document.createElement('div');
-              card.className = `place-card ${item.type === 'heritage' ? 'heritage-card' : ''}`;
-              card.innerHTML = `
-                <strong>${item.type === 'veg' ? '🥗' : '🏛️'} ${item.name}</strong> (${item.dist})
-                <p style="margin:5px 0 0 0; font-size:14px; color:#555;">${item.desc}</p>
-              `;
-              resultsDiv.appendChild(card);
-            });
-          } else {
-            statusDiv.innerText = "Error: " + (data.error?.message || "Invalid Google AI Studio Key.");
+          if (!data.elements || data.elements.length === 0) {
+            statusDiv.innerText = "No specific tagged veg/heritage places found within 5km of your exact spot.";
+            return;
           }
+
+          statusDiv.innerText = `Found ${data.elements.length} places near you:`;
+
+          data.elements.forEach(item => {
+            const name = item.tags.name || "Unnamed Place";
+            const isHeritage = item.tags.historic !== undefined;
+            const itemLat = item.lat || (item.center && item.center.lat);
+            const itemLon = item.lon || (item.center && item.center.lon);
+
+            // Add marker to map
+            if (itemLat && itemLon) {
+              L.marker([itemLat, itemLon])
+               .addTo(placesGroup)
+               .bindPopup(`<b>${name}</b><br>${isHeritage ? 'Historic Site' : 'Vegetarian Spot'}`);
+            }
+
+            // Add list card
+            const card = document.createElement('div');
+            card.className = `place-card ${isHeritage ? 'heritage-card' : ''}`;
+            card.innerHTML = `
+              <strong>${isHeritage ? '🏛️' : '🥗'} ${name}</strong>
+              <p style="margin:5px 0 0 0; font-size:13px; color:#666;">
+                Type: ${isHeritage ? (item.tags.historic || 'Historic site') : 'Vegetarian Food Spot'}
+              </p>
+            `;
+            resultsDiv.appendChild(card);
+          });
+
         } catch (err) {
-          statusDiv.innerText = "Error processing places: " + err.message;
+          statusDiv.innerText = "Error fetching map data: " + err.message;
         }
       }, (err) => {
-        statusDiv.innerText = "Location Error: Please ensure Location (GPS) is turned on.";
+        statusDiv.innerText = "Location Error: Please ensure GPS is enabled on your S20 FE.";
       });
     }
   </script>
