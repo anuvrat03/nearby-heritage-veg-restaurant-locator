@@ -72,7 +72,7 @@
   <h2>📍 Veg & Heritage Spotter</h2>
   <p>Find pure vegetarian food and historic structures near you.</p>
 
-  <!-- Key Entry Section (Hidden when key exists) -->
+  <!-- Key Entry Section -->
   <div id="keySection">
     <input type="password" id="apiKey" placeholder="Paste Google AI Studio Key Here" />
     <button onclick="saveKey()">Save Key on Device</button>
@@ -160,7 +160,7 @@ Return ONLY a raw JSON array with no markdown backticks, matching this exact for
 ]`;
 
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
           
           const response = await fetch(url, {
             method: 'POST',
