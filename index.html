@@ -58,7 +58,7 @@
   <p>Find pure vegetarian food and historic structures near you.</p>
 
   <div id="keySection">
-    <input type="password" id="apiKey" placeholder="Paste Google AI Studio Key Here" />
+    <input type="password" id="apiKey" placeholder="Paste OpenRouter Key Here" />
     <button onclick="saveKey()">Save Key on Device</button>
   </div>
 
@@ -73,7 +73,7 @@
     let map, userMarker;
 
     window.onload = function() {
-      const savedKey = localStorage.getItem('gemini_key');
+      const savedKey = localStorage.getItem('openrouter_key');
       if (savedKey) {
         document.getElementById('keySection').style.display = 'none';
         document.getElementById('findBtn').style.display = 'block';
@@ -86,14 +86,14 @@
         alert('Please enter a valid key!');
         return;
       }
-      localStorage.setItem('gemini_key', key);
+      localStorage.setItem('openrouter_key', key);
       alert('Key saved! You won\'t need to re-enter it.');
       document.getElementById('keySection').style.display = 'none';
       document.getElementById('findBtn').style.display = 'block';
     }
 
     async function getPlaces() {
-      const apiKey = localStorage.getItem('gemini_key');
+      const apiKey = localStorage.getItem('openrouter_key');
       const statusDiv = document.getElementById('status');
       const resultsDiv = document.getElementById('results');
 
@@ -119,32 +119,34 @@
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.marker([lat, lon]).addTo(map).bindPopup('You are here').openPopup();
 
-        statusDiv.innerText = "Searching nearby spots via Gemini AI...";
+        statusDiv.innerText = "Searching nearby spots via OpenRouter...";
 
         const prompt = `Given latitude ${lat} and longitude ${lon}, list 3 pure vegetarian restaurants and 3 historical/heritage sites nearby.
-Return ONLY a raw JSON array matching this exact structure:
+Return ONLY a raw JSON array matching this exact structure with no extra text:
 [
   {"type": "veg", "name": "Place Name", "desc": "Brief description", "dist": "Distance in km"},
   {"type": "heritage", "name": "Site Name", "desc": "Brief description", "dist": "Distance in km"}
 ]`;
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
         try {
-          const response = await fetch(url, {
+          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }]
+              model: 'google/gemma-2-9b-it:free',
+              messages: [{ role: 'user', content: prompt }]
             })
           });
 
           const data = await response.json();
-          if (data.candidates && data.candidates[0]) {
+          if (data.choices && data.choices[0]) {
             statusDiv.innerText = "";
             resultsDiv.innerHTML = "";
 
-            let rawText = data.candidates[0].content.parts[0].text;
+            let rawText = data.choices[0].message.content;
             let cleanJson = rawText.replace(/```json|```/g, '').trim();
             const places = JSON.parse(cleanJson);
 
@@ -158,7 +160,7 @@ Return ONLY a raw JSON array matching this exact structure:
               resultsDiv.appendChild(card);
             });
           } else {
-            statusDiv.innerText = "Error: " + (data.error?.message || "Invalid API key.");
+            statusDiv.innerText = "Error: " + (data.error?.message || "Invalid API key or credit issue.");
           }
         } catch (err) {
           statusDiv.innerText = "Error processing data: " + err.message;
