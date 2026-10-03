@@ -77,50 +77,48 @@
 
         document.getElementById('map').style.display = 'block';
         if (!map) {
-          map = L.map('map').setView([lat, lon], 13);
+          map = L.map('map').setView([lat, lon], 12);
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
           placesGroup = L.layerGroup().addTo(map);
         } else {
-          map.setView([lat, lon], 13);
+          map.setView([lat, lon], 12);
           placesGroup.clearLayers();
         }
 
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.marker([lat, lon]).addTo(map).bindPopup('You are here').openPopup();
 
-        statusDiv.innerText = "Searching OpenStreetMap data...";
+        statusDiv.innerText = "Searching wider area (10km) for eateries & landmarks...";
 
-        // Overpass Query for Veg spots and Historic sites within 5km (5000m)
-        const rawQuery = `[out:json][timeout:25];(node["amenity"="restaurant"](around:5000,${lat},${lon});node["historic"](around:5000,${lat},${lon});way["historic"](around:5000,${lat},${lon}););out center 15;`;
+        // Broadened search query (10000m / 10km radius for food, cafes, temples, historic sites)
+        const rawQuery = `[out:json][timeout:25];(node["amenity"~"restaurant|food_court|fast_food|cafe"](around:10000,${lat},${lon});node["historic"](around:10000,${lat},${lon});node["amenity"="place_of_worship"](around:10000,${lat},${lon}););out center 20;`;
         
         const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(rawQuery)}`;
 
         try {
           const response = await fetch(overpassUrl);
-          if (!response.ok) {
-            throw new Error(`Server returned status ${response.status}`);
-          }
+          if (!response.ok) throw new Error(`Status ${response.status}`);
 
           const data = await response.json();
           resultsDiv.innerHTML = "";
 
           if (!data.elements || data.elements.length === 0) {
-            statusDiv.innerText = "No tagged restaurants or heritage sites found within 5km.";
+            statusDiv.innerText = "No results found within 10km radius.";
             return;
           }
 
-          statusDiv.innerText = `Found ${data.elements.length} places near you:`;
+          statusDiv.innerText = `Found ${data.elements.length} spots near you:`;
 
           data.elements.forEach(item => {
-            const name = item.tags?.name || "Local Point of Interest";
-            const isHeritage = item.tags?.historic !== undefined;
+            const name = item.tags?.name || "Local Eatery / Spot";
+            const isHeritage = item.tags?.historic !== undefined || item.tags?.amenity === 'place_of_worship';
             const itemLat = item.lat || item.center?.lat;
             const itemLon = item.lon || item.center?.lon;
 
             if (itemLat && itemLon) {
               L.marker([itemLat, itemLon])
                .addTo(placesGroup)
-               .bindPopup(`<b>${name}</b><br>${isHeritage ? 'Historic Site' : 'Restaurant'}`);
+               .bindPopup(`<b>${name}</b><br>${isHeritage ? 'Heritage / Culture' : 'Food Spot'}`);
             }
 
             const card = document.createElement('div');
@@ -128,7 +126,7 @@
             card.innerHTML = `
               <strong>${isHeritage ? '🏛️' : '🥗'} ${name}</strong>
               <p style="margin:5px 0 0 0; font-size:13px; color:#666;">
-                Type: ${isHeritage ? (item.tags.historic || 'Historic site') : 'Food / Restaurant'}
+                Type: ${isHeritage ? (item.tags.historic || 'Heritage / Landmark') : (item.tags.amenity || 'Eatery')}
               </p>
             `;
             resultsDiv.appendChild(card);
@@ -138,7 +136,7 @@
           statusDiv.innerText = "Error fetching map data: " + err.message;
         }
       }, (err) => {
-        statusDiv.innerText = "Location Error: Please ensure GPS is enabled on your device.";
+        statusDiv.innerText = "Location Error: Please ensure GPS is enabled on your S20 FE.";
       });
     }
   </script>
