@@ -13,18 +13,34 @@
       color: #333;
       margin: 0;
     }
-    h2 { color: #2c3e50; margin-top: 5px; }
-    button {
-      background-color: #27ae60;
-      color: white;
-      border: none;
-      padding: 14px;
-      font-size: 16px;
-      border-radius: 8px;
-      width: 100%;
-      margin-bottom: 15px;
-      font-weight: bold;
+    h2 { color: #2c3e50; margin-top: 5px; margin-bottom: 5px; }
+    p { margin-top: 0; margin-bottom: 12px; color: #555; font-size: 14px; }
+    
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
     }
+    .filter-btn {
+      flex: 1;
+      padding: 10px 4px;
+      font-size: 13px;
+      font-weight: bold;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+    }
+    .btn-all { background-color: #2980b9; } /* Vibrant Blue */
+    .btn-veg { background-color: #27ae60; } /* High-contrast Green */
+    .btn-heritage { background-color: #d35400; } /* Dark Orange / Heritage Brown */
+    
+    .filter-btn.active {
+      border-color: #111;
+      box-shadow: 0 0 8px rgba(0,0,0,0.3);
+      transform: scale(1.02);
+    }
+
     #map {
       height: 250px;
       width: 100%;
@@ -38,32 +54,40 @@
       border-radius: 8px;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       margin-bottom: 10px;
-      border-left: 5px solid #27ae60;
+      border-left: 6px solid #27ae60;
     }
     .heritage-card {
-      border-left-color: #e67e22;
+      border-left-color: #d35400;
     }
     #status {
       font-size: 14px;
       margin-bottom: 10px;
-      color: #555;
+      color: #333;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
 
   <h2>📍 Veg & Heritage Spotter</h2>
-  <p>Find pure vegetarian food, hotels, and historic structures near you.</p>
+  <p>Find pure vegetarian food, hotels, and historic spots near you.</p>
 
-  <button onclick="getPlaces()">Find Places Near Me</button>
+  <!-- High-Contrast Category Bar -->
+  <div class="filter-bar">
+    <button class="filter-btn btn-all active" onclick="setCategory('all')">🌐 All Spots</button>
+    <button class="filter-btn btn-veg" onclick="setCategory('veg')">🥗 Veg Eateries</button>
+    <button class="filter-btn btn-heritage" onclick="setCategory('heritage')">🏛️ Heritage</button>
+  </div>
 
-  <div id="status"></div>
+  <div id="status">Tap a category button above to search</div>
   <div id="map"></div>
   <div id="results"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     let map, userMarker, placesGroup;
+    let currentCategory = 'all';
+    let userLat = null, userLon = null;
 
     // Verified Local Pure Veg Spots & Hotels near Bongloor / Turkayamjal / Adibatla
     const verifiedVegSpots = [
@@ -74,97 +98,113 @@
       { name: "Swathi Mess & Dhaba", lat: 17.2450, lon: 78.5800, type: "Veg South Indian" }
     ];
 
+    function setCategory(cat) {
+      currentCategory = cat;
+      
+      // Highlight active button
+      document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+      if (cat === 'all') document.querySelector('.btn-all').classList.add('active');
+      if (cat === 'veg') document.querySelector('.btn-veg').classList.add('active');
+      if (cat === 'heritage') document.querySelector('.btn-heritage').classList.add('active');
+
+      getPlaces();
+    }
+
     async function getPlaces() {
       const statusDiv = document.getElementById('status');
       const resultsDiv = document.getElementById('results');
 
-      statusDiv.innerText = "Accessing GPS location...";
+      if (!userLat || !userLon) {
+        statusDiv.innerText = "Accessing GPS location...";
+        navigator.geolocation.getCurrentPosition((pos) => {
+          userLat = pos.coords.latitude;
+          userLon = pos.coords.longitude;
+          fetchData();
+        }, () => {
+          statusDiv.innerText = "Location Error: Please turn on GPS on your S20 FE.";
+        });
+      } else {
+        fetchData();
+      }
 
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-
+      async function fetchData() {
         document.getElementById('map').style.display = 'block';
         if (!map) {
-          map = L.map('map').setView([lat, lon], 12);
+          map = L.map('map').setView([userLat, userLon], 12);
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
           placesGroup = L.layerGroup().addTo(map);
         } else {
-          map.setView([lat, lon], 12);
           placesGroup.clearLayers();
         }
 
         if (userMarker) map.removeLayer(userMarker);
-        userMarker = L.marker([lat, lon]).addTo(map).bindPopup('You are here').openPopup();
+        userMarker = L.marker([userLat, userLon]).addTo(map).bindPopup('You are here').openPopup();
 
-        statusDiv.innerText = "Searching nearby eateries & landmarks...";
-
-        // Add verified local pure veg spots to the map
+        statusDiv.innerText = `Searching for ${currentCategory.toUpperCase()} spots...`;
         resultsDiv.innerHTML = "";
         let totalFound = 0;
 
-        verifiedVegSpots.forEach(item => {
-          L.marker([item.lat, item.lon])
-           .addTo(placesGroup)
-           .bindPopup(`<b>${item.name}</b><br>${item.type}`);
+        // 1. Load Veg Spots if category is 'all' or 'veg'
+        if (currentCategory === 'all' || currentCategory === 'veg') {
+          verifiedVegSpots.forEach(item => {
+            L.marker([item.lat, item.lon])
+             .addTo(placesGroup)
+             .bindPopup(`<b>${item.name}</b><br>${item.type}`);
 
-          const card = document.createElement('div');
-          card.className = 'place-card';
-          card.innerHTML = `
-            <strong>🥗 ${item.name}</strong>
-            <p style="margin:5px 0 0 0; font-size:13px; color:#27ae60; font-weight:bold;">
-              Type: ${item.type} (Verified Pure Veg)
-            </p>
-          `;
-          resultsDiv.appendChild(card);
-          totalFound++;
-        });
+            const card = document.createElement('div');
+            card.className = 'place-card';
+            card.innerHTML = `
+              <strong>🥗 ${item.name}</strong>
+              <p style="margin:5px 0 0 0; font-size:13px; color:#27ae60; font-weight:bold;">
+                Type: ${item.type} (Verified Pure Veg)
+              </p>
+            `;
+            resultsDiv.appendChild(card);
+            totalFound++;
+          });
+        }
 
-        // Query OpenStreetMap for named historic landmarks
-        const rawQuery = `[out:json][timeout:15];(node["historic"](around:8000,${lat},${lon}););out center 15;`;
-        const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(rawQuery)}`;
+        // 2. Load Heritage Sites if category is 'all' or 'heritage'
+        if (currentCategory === 'all' || currentCategory === 'heritage') {
+          const rawQuery = `[out:json][timeout:15];(node["historic"](around:10000,${userLat},${userLon});way["historic"](around:10000,${userLat},${userLon});node["amenity"="place_of_worship"](around:10000,${userLat},${userLon}););out center 20;`;
+          const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(rawQuery)}`;
 
-        try {
-          const response = await fetch(overpassUrl);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.elements) {
-              data.elements.forEach(item => {
-                // Only show entries that have a real name tag
-                if (item.tags && item.tags.name) {
-                  const name = item.tags.name;
+          try {
+            const response = await fetch(overpassUrl);
+            if (response.ok) {
+              const data = await response.json();
+              if (data.elements) {
+                data.elements.forEach(item => {
+                  const name = item.tags?.name || "Local Historic/Cultural Site";
                   const itemLat = item.lat || item.center?.lat;
                   const itemLon = item.lon || item.center?.lon;
 
                   if (itemLat && itemLon) {
                     L.marker([itemLat, itemLon])
                      .addTo(placesGroup)
-                     .bindPopup(`<b>${name}</b><br>Heritage Site`);
-                  }
+                     .bindPopup(`<b>${name}</b><br>Heritage Landmark`);
 
-                  const card = document.createElement('div');
-                  card.className = 'place-card heritage-card';
-                  card.innerHTML = `
-                    <strong>🏛️ ${name}</strong>
-                    <p style="margin:5px 0 0 0; font-size:13px; color:#e67e22; font-weight:bold;">
-                      Type: ${item.tags.historic || 'Heritage / Landmark'}
-                    </p>
-                  `;
-                  resultsDiv.appendChild(card);
-                  totalFound++;
-                }
-              });
+                    const card = document.createElement('div');
+                    card.className = 'place-card heritage-card';
+                    card.innerHTML = `
+                      <strong>🏛️ ${name}</strong>
+                      <p style="margin:5px 0 0 0; font-size:13px; color:#d35400; font-weight:bold;">
+                        Type: ${item.tags?.historic || 'Heritage / Landmark'}
+                      </p>
+                    `;
+                    resultsDiv.appendChild(card);
+                    totalFound++;
+                  }
+                });
+              }
             }
+          } catch (e) {
+            console.log("Heritage fetch error:", e);
           }
-        } catch (e) {
-          console.log("Heritage fetch deferred");
         }
 
-        statusDiv.innerText = `Found ${totalFound} named spots near you:`;
-
-      }, (err) => {
-        statusDiv.innerText = "Location Error: Please ensure GPS is enabled on your device.";
-      });
+        statusDiv.innerText = `Showing ${totalFound} spots:`;
+      }
     }
   </script>
 </body>
