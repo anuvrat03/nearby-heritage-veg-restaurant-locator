@@ -90,54 +90,45 @@
 
         statusDiv.innerText = "Searching OpenStreetMap data...";
 
-        // Overpass QL Query for Veg restaurants and Heritage/Historic sites within 5km (5000m)
-        const query = `
-          [out:json][timeout:25];
-          (
-            node["diet:vegetarian"="yes"](around:5000,${lat},${lon});
-            node["amenity"="restaurant"]["vegetarian"="yes"](around:5000,${lat},${lon});
-            node["historic"](around:5000,${lat},${lon});
-            way["historic"](around:5000,${lat},${lon});
-          );
-          out center 10;
-        `;
+        // Overpass Query for Veg spots and Historic sites within 5km (5000m)
+        const rawQuery = `[out:json][timeout:25];(node["amenity"="restaurant"](around:5000,${lat},${lon});node["historic"](around:5000,${lat},${lon});way["historic"](around:5000,${lat},${lon}););out center 15;`;
+        
+        const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(rawQuery)}`;
 
         try {
-          const response = await fetch('https://overpass-api.de/api/interpreter', {
-            method: 'POST',
-            body: query
-          });
+          const response = await fetch(overpassUrl);
+          if (!response.ok) {
+            throw new Error(`Server returned status ${response.status}`);
+          }
 
           const data = await response.json();
           resultsDiv.innerHTML = "";
 
           if (!data.elements || data.elements.length === 0) {
-            statusDiv.innerText = "No specific tagged veg/heritage places found within 5km of your exact spot.";
+            statusDiv.innerText = "No tagged restaurants or heritage sites found within 5km.";
             return;
           }
 
           statusDiv.innerText = `Found ${data.elements.length} places near you:`;
 
           data.elements.forEach(item => {
-            const name = item.tags.name || "Unnamed Place";
-            const isHeritage = item.tags.historic !== undefined;
-            const itemLat = item.lat || (item.center && item.center.lat);
-            const itemLon = item.lon || (item.center && item.center.lon);
+            const name = item.tags?.name || "Local Point of Interest";
+            const isHeritage = item.tags?.historic !== undefined;
+            const itemLat = item.lat || item.center?.lat;
+            const itemLon = item.lon || item.center?.lon;
 
-            // Add marker to map
             if (itemLat && itemLon) {
               L.marker([itemLat, itemLon])
                .addTo(placesGroup)
-               .bindPopup(`<b>${name}</b><br>${isHeritage ? 'Historic Site' : 'Vegetarian Spot'}`);
+               .bindPopup(`<b>${name}</b><br>${isHeritage ? 'Historic Site' : 'Restaurant'}`);
             }
 
-            // Add list card
             const card = document.createElement('div');
             card.className = `place-card ${isHeritage ? 'heritage-card' : ''}`;
             card.innerHTML = `
               <strong>${isHeritage ? '🏛️' : '🥗'} ${name}</strong>
               <p style="margin:5px 0 0 0; font-size:13px; color:#666;">
-                Type: ${isHeritage ? (item.tags.historic || 'Historic site') : 'Vegetarian Food Spot'}
+                Type: ${isHeritage ? (item.tags.historic || 'Historic site') : 'Food / Restaurant'}
               </p>
             `;
             resultsDiv.appendChild(card);
@@ -147,7 +138,7 @@
           statusDiv.innerText = "Error fetching map data: " + err.message;
         }
       }, (err) => {
-        statusDiv.innerText = "Location Error: Please ensure GPS is enabled on your S20 FE.";
+        statusDiv.innerText = "Location Error: Please ensure GPS is enabled on your device.";
       });
     }
   </script>
